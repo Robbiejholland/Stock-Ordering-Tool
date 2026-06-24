@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TCG Stock Calculator</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --panel-bg: #ffffff;
+      --muted: #cfe6d1;
+      --text: #072018;
+      --accent: #0b6fb2;
+      --forest: #0b3d0b; /* forest green background */
+      --card-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    }
+    html,body{height:100%; margin:0; font-family:Inter, "Segoe UI", Arial, sans-serif; background:var(--forest); color:var(--text);}
+    .container{max-width:1100px; margin:28px auto; padding:18px; display:grid; grid-template-columns:1fr 420px; gap:18px;}
+    .card{background:var(--panel-bg); border-radius:10px; padding:16px; box-shadow:var(--card-shadow);}
+    h1{margin:0 0 8px 0; font-size:20px; color:var(--text);}
+    label{display:block; margin-top:10px; font-size:13px; color:#0b3d1a;}
+    input[type="text"], input[type="number"], select, textarea{
+      width:100%; padding:8px 10px; margin-top:6px; border-radius:8px; border:1px solid #e6efe6; box-sizing:border-box;
+      background:#fbfffb; font-size:14px;
+    }
+    .row{display:flex; gap:10px; align-items:center;}
+    .col{flex:1;}
+    .small{font-size:13px; color:#2b5b3a; margin-top:8px;}
+    .muted{font-size:13px; color:#6b8b6b;}
+    button{padding:10px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:600;}
+    .btn-primary{background:#0b6fb2; color:#fff;}
+    .btn-secondary{background:#e6f3ea; color:#0b3d0b; border:1px solid #cfe6d1;}
+    .results {margin-top:12px; padding:12px; border-radius:8px; background:linear-gradient(180deg,#fbfffb,#eef7ee); border:1px solid #d6ead6;}
+    .resultRow{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed #e6f0eb;}
+    .resultRow:last-child{border-bottom:0;}
+    .saved-list{max-height:420px; overflow:auto; margin-top:10px;}
+    .saved-item{padding:10px; border-radius:8px; background:#f6fff6; margin-bottom:8px; border:1px solid #e0f0df;}
+    .saved-item .meta{font-size:12px; color:#3b6b45;}
+    .controls{display:flex; gap:8px; margin-top:12px;}
+    .note{font-size:12px; color:#2b5b3a; margin-top:10px;}
+    @media (max-width:980px){ .container{grid-template-columns:1fr; padding:12px;} .saved-list{max-height:260px;} }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Left: Form -->
+    <div class="card" id="formCard">
+      <h1>TCG Stock Calculator</h1>
+
+      <!-- 1. TCG selection (top) -->
+      <label for="tcgSelect">Select TCG</label>
+      <select id="tcgSelect" aria-label="Select TCG"></select>
+
+      <!-- 2. New set name (under TCG) -->
+      <label for="setName">New set name</label>
+      <input id="setName" type="text" placeholder="Enter set name (e.g., Dawn of Legends)" />
+
+      <!-- 3 & 4. Players per week and packs per person (side-by-side) -->
+      <div class="row" style="margin-top:8px;">
+        <div class="col">
+          <label for="avgParticipants">Average participants per week</label>
+          <input id="avgParticipants" type="number" min="0" step="1" value="20" />
+        </div>
+        <div class="col">
+          <label for="packsPerPerson">(Stored) Packs used per person per week</label>
+          <input id="packsPerPerson" type="number" min="0" step="0.1" value="0.5" />
+        </div>
+      </div>
+
+      <!-- 5. Boxes used for special events (renamed) -->
+      <label for="boxesForEvents">Boxes used for special events (per event)</label>
+      <input id="boxesForEvents" type="number" min="0" step="1" value="1" />
+
+      <!-- 6. Total number of packs sold previous set -->
+      <label for="totalPacksPrev">Total number of packs sold (previous set)</label>
+      <div class="row">
+        <input id="totalPacksPrev" type="number" min="0" step="1" value="1200" />
+        <label style="display:flex; align-items:center; gap:8px; margin-left:6px;">
+          <input id="soldOut" type="checkbox" /> <span class="muted">Sold out or limited (add 10%)</span>
+        </label>
+      </div>
+
+      <!-- 7. Weeks until next release -->
+      <label for="weeksBetween">Weeks until next release</label>
+      <input id="weeksBetween" type="number" min="1" step="1" value="12" />
+
+      <!-- Packs per box and previous boxes sold -->
+      <div class="row">
+        <div class="col">
+          <label for="packsPerBox">Packs per box</label>
+          <input id="packsPerBox" type="number" min="1" step="1" value="36" />
+        </div>
+        <div class="col">
+          <label for="boxesPrev">Full boxes sold (previous release)</label>
+          <input id="boxesPrev" type="number" min="0" step="1" value="30" />
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="calcBtn" class="btn-primary">Calculate Order</button>
+        <button id="resetBtn" class="btn-secondary">Reset</button>
+        <button id="saveBtn" class="btn-primary" style="background:#2b8b3a;">Save Recommendation</button>
+      </div>
+
+      <div class="note">Saved recommendations are stored locally in your browser and can be viewed on the right. They are not shared or uploaded anywhere.</div>
+    </div>
+
+    <!-- Right: Results + Saved -->
+    <div class="card" id="resultsCard">
+      <h1>Recommendations & Saved</h1>
+
+      <div id="explain" class="small">No calculation yet. Enter values and click <strong>Calculate Order</strong>.</div>
+
+      <div id="results" class="results" style="display:none;">
+        <div class="resultRow"><div class="muted">Prize packs required (packs)</div><div id="prizePacks">—</div></div>
+        <div class="resultRow"><div class="muted">Prize packs required (boxes)</div><div id="prizeBoxes">—</div></div>
+        <div class="resultRow"><div class="muted">Boxes for events (per event)</div><div id="eventBoxes">—</div></div>
+        <div class="resultRow"><div class="muted">Previous boxes sold</div><div id="prevBoxes">—</div></div>
+        <div class="resultRow"><div class="muted">Sales boxes (from previous pack sales)</div><div id="salesBoxes">—</div></div>
+        <div class="resultRow"><div class="muted"><strong>Total boxes (base)</strong></div><div id="totalBoxes">—</div></div>
+
+        <hr style="border:none; border-top:1px solid #e6f0ea; margin:10px 0;" />
+
+        <div class="resultRow"><div class="muted">Low demand (85%)</div><div id="lowBoxes">—</div></div>
+        <div class="resultRow"><div class="muted">Mid demand (100%)</div><div id="midBoxes">—</div></div>
+        <div class="resultRow"><div class="muted">High demand (110%)</div><div id="highBoxes">—</div></div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <h2 style="font-size:15px; margin:0 0 8px 0; color:#0b3d0b;">Saved Recommendations</h2>
+        <div id="savedList" class="saved-list">
+          <div class="muted">No saved recommendations yet.</div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button id="clearAllBtn" class="btn-secondary">Clear All</button>
+          <button id="exportBtn" class="btn-secondary">Export CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // -------------------------
+  // Defaults and TCG list
+  // -------------------------
+  const tcgDefaults = {
+    'Lorcana': 0.60,
+    'Magic': 0.50,
+    'Yu-Gi-Oh!': 0.45,
+    'Star Wars': 0.40,
+    'Digimon': 0.40,
+    'One Piece': 0.45,
+    'Pokemon': 0.55,
+    'Elestials': 0.35,
+    'Gundam': 0.30,
+    'Cyber Punk': 0.25,
+    'Riftbound': 0.30
+  };
+
+  // Elements
+  const tcgSelect = document.getElementById('tcgSelect');
+  const setNameEl = document.getElementById('setName');
+  const avgParticipantsEl = document.getElementById('avgParticipants');
+  const packsPerPersonEl = document.getElementById('packsPerPerson');
+  const boxesForEventsEl = document.getElementById('boxesForEvents');
+  const totalPacksPrevEl = document.getElementById('totalPacksPrev');
+  const soldOutEl = document.getElementById('soldOut');
+  const weeksBetweenEl = document.getElementById('weeksBetween');
+  const packsPerBoxEl = document.getElementById('packsPerBox');
+  const boxesPrevEl = document.getElementById('boxesPrev');
+
+  const calcBtn = document.getElementById('calcBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  const exportBtn = document.getElementById('exportBtn');
+
+  const resultsWrap = document.getElementById('results');
+  const explain = document.getElementById('explain');
+
+  const prizePacksEl = document.getElementById('prizePacks');
+  const prizeBoxesEl = document.getElementById('prizeBoxes');
+  const eventBoxesEl = document.getElementById('eventBoxes');
+  const prevBoxesEl = document.getElementById('prevBoxes');
+  const salesBoxesEl = document.getElementById('salesBoxes');
+  const totalBoxesEl = document.getElementById('totalBoxes');
+  const lowBoxesEl = document.getElementById('lowBoxes');
+  const midBoxesEl = document.getElementById('midBoxes');
+  const highBoxesEl = document.getElementById('highBoxes');
+
+  const savedListEl = document.getElementById('savedList');
+
+  // Populate TCG dropdown
+  Object.keys(tcgDefaults).forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    tcgSelect.appendChild(opt);
+  });
+
+  // Initialize packs per person from selected TCG
+  function setInitialPacksPerPerson(){
+    packsPerPersonEl.value = tcgDefaults[tcgSelect.value] ?? 0.5;
+  }
+  tcgSelect.addEventListener('change', setInitialPacksPerPerson);
+  setInitialPacksPerPerson();
+
+  // -------------------------
+  // Calculation logic
+  // -------------------------
+  function calculate() {
+    const packsPerPerson = Number(packsPerPersonEl.value) || 0;
+    const avgParticipants = Number(avgParticipantsEl.value) || 0;
+    const boxesForEvents = Number(boxesForEventsEl.value) || 0;
+    const totalPacksPrev = Number(totalPacksPrevEl.value) || 0;
+    const soldOut = soldOutEl.checked;
+    const weeksBetween = Math.max(1, Math.floor(Number(weeksBetweenEl.value) || 1));
+    const boxesPrev = Number(boxesPrevEl.value) || 0;
+    const packsPerBox = Math.max(1, Math.floor(Number(packsPerBoxEl.value) || 36));
+
+    // Prize packs per week = packsPerPerson * avgParticipants
+    const prizePacksPerWeek = packsPerPerson * avgParticipants;
+    const prizePacksTotal = prizePacksPerWeek * weeksBetween;
+    const prizeBoxes = prizePacksTotal / packsPerBox;
+
+    // Adjust previous sales if sold out
+    const adjustedSalesPacks = soldOut ? totalPacksPrev * 1.10 : totalPacksPrev;
+    const salesBoxes = adjustedSalesPacks / packsPerBox;
+
+    // Total boxes base
+    const totalBoxesBase = prizeBoxes + boxesPrev + salesBoxes + boxesForEvents; // include boxes for events as a flat addition
+
+    // Recommendations
+    const lowBoxes = totalBoxesBase * 0.85;
+    const midBoxes = totalBoxesBase * 1.00;
+    const highBoxes = totalBoxesBase * 1.10;
+
+    // Display
+    prizePacksEl.textContent = prizePacksTotal.toFixed(1) + ' packs';
+    prizeBoxesEl.textContent = prizeBoxes.toFixed(2) + ' boxes';
+    eventBoxesEl.textContent = boxesForEvents.toFixed(2) + ' boxes';
+    prevBoxesEl.textContent = boxesPrev.toFixed(2) + ' boxes';
+    salesBoxesEl.textContent = salesBoxes.toFixed(2) + ' boxes';
+    totalBoxesEl.textContent = totalBoxesBase.toFixed(2) + ' boxes';
+
+    lowBoxesEl.textContent = lowBoxes.toFixed(2) + ' boxes (' + Math.ceil(lowBoxes * packsPerBox) + ' packs)';
+    midBoxesEl.textContent = midBoxes.toFixed(2) + ' boxes (' + Math.ceil(midBoxes * packsPerBox) + ' packs)';
+    highBoxesEl.textContent = highBoxes.toFixed(2) + ' boxes (' + Math.ceil(highBoxes * packsPerBox) + ' packs)';
+
+    explain.textContent = 'Results for "' + (setNameEl.value || 'Unnamed set') + '" — TCG: ' + tcgSelect.value;
+    resultsWrap.style.display = 'block';
+
+    // Return an object for saving/exporting
+    return {
+      timestamp: new Date().toISOString(),
+      tcg: tcgSelect.value,
+      setName: setNameEl.value || 'Unnamed set',
+      prizePacksTotal: Number(prizePacksTotal.toFixed(1)),
+      prizeBoxes: Number(prizeBoxes.toFixed(2)),
+      eventBoxes: Number(boxesForEvents.toFixed(2)),
+      prevBoxes: Number(boxesPrev.toFixed(2)),
+      salesBoxes: Number(salesBoxes.toFixed(2)),
+      totalBoxesBase: Number(totalBoxesBase.toFixed(2)),
+      lowBoxes: Number(lowBoxes.toFixed(2)),
+      midBoxes: Number(midBoxes.toFixed(2)),
+      highBoxes: Number(highBoxes.toFixed(2)),
+      packsPerBox: packsPerBox
+    };
+  }
+
+  // -------------------------
+  // Save / Load recommendations (localStorage)
+  // -------------------------
+  const STORAGE_KEY = 'tcg_stock_saved_recommendations';
+
+  function loadSaved(){
+    const raw = localStorage.getItem(STORAGE_KEY);
+    try {
+      return raw ? JSON.parse(raw) : [];
+    } catch(e){
+      return [];
+    }
+  }
+
+  function saveAll(items){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  }
+
+  function renderSaved(){
+    const items = loadSaved();
+    savedListEl.innerHTML = '';
+    if(!items.length){
+      savedListEl.innerHTML = '<div class="muted">No saved recommendations yet.</div>';
+      return;
+    }
+    items.slice().reverse().forEach((it, idx) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'saved-item';
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = `${it.tcg} — ${it.setName} — ${new Date(it.timestamp).toLocaleString()}`;
+      const body = document.createElement('div');
+      body.style.marginTop = '6px';
+      body.innerHTML = `
+        <div style="display:flex; justify-content:space-between; gap:8px; font-size:13px;">
+          <div>Mid: <strong>${it.midBoxes} boxes</strong></div>
+          <div>Low: ${it.lowBoxes} boxes</div>
+          <div>High: ${it.highBoxes} boxes</div>
+        </div>
+        <div style="margin-top:6px; font-size:13px; color:#2b5b3a;">
+          Total boxes base: <strong>${it.totalBoxesBase}</strong> • Packs/box: ${it.packsPerBox}
+        </div>
+      `;
+      const actions = document.createElement('div');
+      actions.style.marginTop = '8px';
+      actions.style.display = 'flex';
+      actions.style.gap = '8px';
+      const loadBtn = document.createElement('button');
+      loadBtn.className = 'btn-secondary';
+      loadBtn.textContent = 'Load';
+      loadBtn.onclick = () => {
+        // Load values back into form
+        tcgSelect.value = it.tcg;
+        setInitialPacksPerPerson();
+        setNameEl.value = it.setName;
+        avgParticipantsEl.value = Math.round((it.prizePacksTotal / (it.packsPerBox || 1)) / (it.totalBoxesBase || 1) * avgParticipantsEl.value) || avgParticipantsEl.value;
+        // Instead of trying to reverse-calc everything, just set key fields:
+        packsPerPersonEl.value = (it.prizePacksTotal / (avgParticipantsEl.value || 1) / (weeksBetweenEl.value || 1)).toFixed(2);
+        totalPacksPrevEl.value = Math.round(it.salesBoxes * it.packsPerBox);
+        boxesPrevEl.value = it.prevBoxes;
+        packsPerBoxEl.value = it.packsPerBox;
+        weeksBetweenEl.value = weeksBetweenEl.value || 12;
+        soldOutEl.checked = false;
+        boxesForEventsEl.value = it.eventBoxes;
+        // Recalculate to show results
+        calculate();
+        window.scrollTo({top:0, behavior:'smooth'});
+      };
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-secondary';
+      delBtn.textContent = 'Delete';
+      delBtn.onclick = () => {
+        const all = loadSaved();
+        // remove the specific item by matching timestamp
+        const filtered = all.filter(x => x.timestamp !== it.timestamp);
+        saveAll(filtered);
+        renderSaved();
+      };
+      actions.appendChild(loadBtn);
+      actions.appendChild(delBtn);
+
+      wrapper.appendChild(meta);
+      wrapper.appendChild(body);
+      wrapper.appendChild(actions);
+      savedListEl.appendChild(wrapper);
+    });
+  }
+
+  // Save current recommendation
+  function saveCurrent(){
+    const current = calculate();
+    const items = loadSaved();
+    items.push(current);
+    saveAll(items);
+    renderSaved();
+    // small visual feedback
+    saveBtn.textContent = 'Saved ✓';
+    setTimeout(()=> saveBtn.textContent = 'Save Recommendation', 1200);
+  }
+
+  // Clear all saved
+  function clearAll(){
+    if(!confirm('Clear all saved recommendations? This cannot be undone.')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    renderSaved();
+  }
+
+  // Export CSV
+  function exportCSV(){
+    const items = loadSaved();
+    if(!items.length){ alert('No saved recommendations to export.'); return; }
+    const header = ['timestamp','tcg','setName','prizePacksTotal','prizeBoxes','eventBoxes','prevBoxes','salesBoxes','totalBoxesBase','lowBoxes','midBoxes','highBoxes','packsPerBox'];
+    const rows = items.map(it => header.map(h => JSON.stringify(it[h] ?? '')).join(','));
+    const csv = [header.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tcg_stock_recommendations.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // -------------------------
+  // Event listeners
+  // -------------------------
+  calcBtn.addEventListener('click', () => { calculate(); });
+  resetBtn.addEventListener('click', () => {
+    setNameEl.value = '';
+    avgParticipantsEl.value = 20;
+    setInitialPacksPerPerson();
+    boxesForEventsEl.value = 1;
+    totalPacksPrevEl.value = 1200;
+    soldOutEl.checked = false;
+    weeksBetweenEl.value = 12;
+    packsPerBoxEl.value = 36;
+    boxesPrevEl.value = 30;
+    resultsWrap.style.display = 'none';
+    explain.textContent = 'No calculation yet. Enter values and click Calculate Order.';
+  });
+  saveBtn.addEventListener('click', saveCurrent);
+  clearAllBtn.addEventListener('click', clearAll);
+  exportBtn.addEventListener('click', exportCSV);
+
+  // Render saved on load
+  renderSaved();
+
+  // Accessibility: allow Enter key on form to calculate
+  document.getElementById('formCard').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && (e.target.tagName !== 'TEXTAREA')) {
+      e.preventDefault();
+      calculate();
+    }
+  });
+  </script>
+</body>
