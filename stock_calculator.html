@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TCG Stock Calculator</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; background:#f4f7fb; color:#0b2545; margin:0; padding:20px; }
+    .wrap { max-width:980px; margin:0 auto; display:grid; grid-template-columns:1fr 380px; gap:18px; }
+    .card { background:#fff; border-radius:8px; padding:16px; box-shadow:0 6px 18px rgba(11,37,69,0.08); }
+    h2 { margin:0 0 10px 0; font-size:20px; color:#07203a; }
+    label { display:block; margin-top:10px; font-size:13px; color:#234a6b; }
+    input[type="text"], input[type="number"], select { width:100%; padding:8px 10px; margin-top:6px; border-radius:6px; border:1px solid #d6e3f0; background:#fbfdff; box-sizing:border-box; }
+    input[type="checkbox"] { transform:scale(1.1); margin-right:8px; }
+    .row { display:flex; gap:8px; }
+    .col { flex:1; }
+    button { margin-top:12px; padding:10px 12px; border-radius:6px; border:0; background:#0b6fb2; color:#fff; cursor:pointer; }
+    button.secondary { background:#e6eef8; color:#0b2545; border:1px solid #cfe3f6; }
+    .results { margin-top:12px; padding:12px; border-radius:6px; background:linear-gradient(180deg,#fbfdff,#f3f8ff); border:1px solid #d6eafc; }
+    .resultRow { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed #e6f0fb; }
+    .resultRow:last-child { border-bottom:0; }
+    .muted { color:#5b7b98; font-size:13px; }
+    .small { font-size:12px; color:#5b7b98; margin-top:8px; }
+    .tcg-note { font-size:13px; color:#0b2545; margin-top:8px; }
+    @media (max-width:900px) { .wrap { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h2>TCG Stock Calculator</h2>
+
+      <label for="tcgSelect">Select TCG</label>
+      <select id="tcgSelect"></select>
+
+      <label for="setName">New set name</label>
+      <input id="setName" type="text" placeholder="Enter set name (e.g., Dawn of Legends)" />
+
+      <div class="row">
+        <div class="col">
+          <label for="packsPerChamp">Packs used for store championship per event</label>
+          <input id="packsPerChamp" type="number" min="0" step="1" value="10" />
+        </div>
+        <div class="col">
+          <label for="avgParticipants">Average participants per week</label>
+          <input id="avgParticipants" type="number" min="0" step="1" value="20" />
+        </div>
+      </div>
+
+      <label for="packsPerPerson">(Stored) Packs used per person per week for prize support</label>
+      <input id="packsPerPerson" type="number" min="0" step="0.1" value="0.5" />
+
+      <label for="totalPacksPrev">Total number of packs sold previous set</label>
+      <div class="row">
+        <input id="totalPacksPrev" type="number" min="0" step="1" value="1200" />
+        <label style="display:flex; align-items:center; margin:0 0 0 8px;">
+          <input id="soldOut" type="checkbox" /> <span class="muted">Sold out or limited (add 10%)</span>
+        </label>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <label for="weeksBetween">Weeks until next release</label>
+          <input id="weeksBetween" type="number" min="1" step="1" value="12" />
+        </div>
+        <div class="col">
+          <label for="boxesPrev">Full boxes sold previous release</label>
+          <input id="boxesPrev" type="number" min="0" step="1" value="30" />
+        </div>
+      </div>
+
+      <label for="packsPerBox">Packs per box</label>
+      <input id="packsPerBox" type="number" min="1" step="1" value="36" />
+
+      <div style="display:flex; gap:8px;">
+        <button id="calcBtn">Calculate Order</button>
+        <button id="resetBtn" class="secondary">Reset</button>
+      </div>
+
+      <div class="small">Tip: Edit the stored defaults in the script to fine tune pack usage per person for each TCG.</div>
+    </div>
+
+    <div class="card">
+      <h2>Recommendations</h2>
+      <div id="explain" class="tcg-note">No calculation yet. Enter values and click <strong>Calculate Order</strong>.</div>
+
+      <div id="results" class="results" style="display:none;">
+        <div class="resultRow">
+          <div class="muted">Prize packs required packs</div>
+          <div id="prizePacks">—</div>
+        </div>
+        <div class="resultRow">
+          <div class="muted">Prize packs required boxes</div>
+          <div id="prizeBoxes">—</div>
+        </div>
+        <div class="resultRow">
+          <div class="muted">Previous boxes sold</div>
+          <div id="prevBoxes">—</div>
+        </div>
+        <div class="resultRow">
+          <div class="muted">Sales boxes from previous pack sales</div>
+          <div id="salesBoxes">—</div>
+        </div>
+        <div class="resultRow">
+          <div class="muted"><strong>Total boxes base</strong></div>
+          <div id="totalBoxes">—</div>
+        </div>
+
+        <hr style="border:none; border-top:1px solid #e6f0fb; margin:10px 0;" />
+
+        <div class="resultRow">
+          <div class="muted">Low demand 85%</div>
+          <div id="lowBoxes">—</div>
+        </div>
+        <div class="resultRow">
+          <div class="muted">Mid demand 100%</div>
+          <div id="midBoxes">—</div>
+        </div>
+        <div class="resultRow">
+          <div class="muted">High demand 110%</div>
+          <div id="highBoxes">—</div>
+        </div>
+
+        <div class="small" style="margin-top:10px;">
+          <strong>Notes</strong> Prize packs = stored packs per person × average weekly attendance × weeks until next release. Prize packs converted to boxes using packs per box. If sold out/limited is checked, previous pack sales are increased by 10% before conversion.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // -------------------------
+  // TCG defaults updated to your list
+  // -------------------------
+  // Default values for packs used per person per week can be adjusted here.
+  const tcgDefaults = {
+    'Lorcana': 0.60,
+    'Magic': 0.50,
+    'Yu-Gi-Oh!': 0.45,
+    'Star Wars': 0.40,
+    'Digimon': 0.40,
+    'One Piece': 0.45,
+    'Pokemon': 0.55,
+    'Elestials': 0.35,
+    'Gundam': 0.30,
+    'Cyber Punk': 0.25,
+    'Riftbound': 0.30
+  };
+
+  // Populate TCG dropdown
+  const tcgSelect = document.getElementById('tcgSelect');
+  Object.keys(tcgDefaults).forEach((k) => {
+    const opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = k;
+    tcgSelect.appendChild(opt);
+  });
+
+  // Elements
+  const packsPerChampEl = document.getElementById('packsPerChamp');
+  const avgParticipantsEl = document.getElementById('avgParticipants');
+  const packsPerPersonEl = document.getElementById('packsPerPerson');
+  const totalPacksPrevEl = document.getElementById('totalPacksPrev');
+  const soldOutEl = document.getElementById('soldOut');
+  const weeksBetweenEl = document.getElementById('weeksBetween');
+  const boxesPrevEl = document.getElementById('boxesPrev');
+  const packsPerBoxEl = document.getElementById('packsPerBox');
+
+  const calcBtn = document.getElementById('calcBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const resultsWrap = document.getElementById('results');
+  const explain = document.getElementById('explain');
+
+  const prizePacksEl = document.getElementById('prizePacks');
+  const prizeBoxesEl = document.getElementById('prizeBoxes');
+  const prevBoxesEl = document.getElementById('prevBoxes');
+  const salesBoxesEl = document.getElementById('salesBoxes');
+  const totalBoxesEl = document.getElementById('totalBoxes');
+  const lowBoxesEl = document.getElementById('lowBoxes');
+  const midBoxesEl = document.getElementById('midBoxes');
+  const highBoxesEl = document.getElementById('highBoxes');
+
+  // Set initial packsPerPerson from selected TCG
+  function setInitialPacksPerPerson() {
+    packsPerPersonEl.value = tcgDefaults[tcgSelect.value] !== undefined ? tcgDefaults[tcgSelect.value] : 0.5;
+  }
+  tcgSelect.addEventListener('change', setInitialPacksPerPerson);
+  setInitialPacksPerPerson();
+
+  // Calculation logic
+  function calculate() {
+    const packsPerChamp = Number(packsPerChampEl.value) || 0;
+    const avgParticipants = Number(avgParticipantsEl.value) || 0;
+    const packsPerPerson = Number(packsPerPersonEl.value) || 0;
+    const totalPacksPrev = Number(totalPacksPrevEl.value) || 0;
+    const soldOut = soldOutEl.checked;
+    const weeksBetween = Math.max(1, Math.floor(Number(weeksBetweenEl.value) || 1));
+    const boxesPrev = Number(boxesPrevEl.value) || 0;
+    const packsPerBox = Math.max(1, Math.floor(Number(packsPerBoxEl.value) || 36));
+
+    // Prize packs per week = stored packs per person per week * average participants
+    const prizePacksPerWeek = packsPerPerson * avgParticipants;
+
+    // Total prize packs for the release window
+    const prizePacksTotal = prizePacksPerWeek * weeksBetween;
+
+    // Convert prize packs to boxes
+    const prizeBoxes = prizePacksTotal / packsPerBox;
+
+    // Sales packs adjusted for sold out/limited
+    const adjustedSalesPacks = soldOut ? totalPacksPrev * 1.10 : totalPacksPrev;
+
+    // Convert sales packs to boxes
+    const salesBoxes = adjustedSalesPacks / packsPerBox;
+
+    // Total boxes (base)
+    const totalBoxesBase = prizeBoxes + boxesPrev + salesBoxes;
+
+    // Recommendations
+    const lowBoxes = totalBoxesBase * 0.85;
+    const midBoxes = totalBoxesBase * 1.00;
+    const highBoxes = totalBoxesBase * 1.10;
+
+    // Display results
+    prizePacksEl.textContent = prizePacksTotal.toFixed(1) + ' packs';
+    prizeBoxesEl.textContent = prizeBoxes.toFixed(2) + ' boxes';
+    prevBoxesEl.textContent = boxesPrev.toFixed(2) + ' boxes';
+    salesBoxesEl.textContent = salesBoxes.toFixed(2) + ' boxes';
+    totalBoxesEl.textContent = totalBoxesBase.toFixed(2) + ' boxes';
+
+    lowBoxesEl.textContent = lowBoxes.toFixed(2) + ' boxes (' + (lowBoxes * packsPerBox).toFixed(0) + ' packs)';
+    midBoxesEl.textContent = midBoxes.toFixed(2) + ' boxes (' + (midBoxes * packsPerBox).toFixed(0) + ' packs)';
+    highBoxesEl.textContent = highBoxes.toFixed(2) + ' boxes (' + (highBoxes * packsPerBox).toFixed(0) + ' packs)';
+
+    explain.textContent = 'Results for "' + (document.getElementById('setName').value || 'Unnamed set') + '" — TCG: ' + tcgSelect.value;
+    resultsWrap.style.display = 'block';
+    resultsWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  calcBtn.addEventListener('click', calculate);
+
+  resetBtn.addEventListener('click', () => {
+    document.getElementById('setName').value = '';
+    packsPerChampEl.value = 10;
+    avgParticipantsEl.value = 20;
+    setInitialPacksPerPerson();
+    totalPacksPrevEl.value = 1200;
+    soldOutEl.checked = false;
+    weeksBetweenEl.value = 12;
+    boxesPrevEl.value = 30;
+    packsPerBoxEl.value = 36;
+    resultsWrap.style.display = 'none';
+    explain.textContent = 'No calculation yet. Enter values and click Calculate Order.';
+  });
+
+  // Allow updating stored default for selected TCG locally
+  packsPerPersonEl.addEventListener('change', () => {
+    const val = Number(packsPerPersonEl.value);
+    if (!isNaN(val) && val >= 0) {
+      tcgDefaults[tcgSelect.value] = val;
+    }
+  });
+
+  console.log('TCG Stock Calculator loaded. Edit tcgDefaults in the script to fine tune defaults.');
+  </script>
+</body>
+</html>
